@@ -4,21 +4,17 @@ use std::collections::HashMap;
 use std::convert::TryFrom;
 
 /// Gets the user's backup key
-/// 
+///
 /// ## Arguments
-/// 
+///
 /// `matrix_handle` - User's matrix handle eg. @mat:matrix.org
-/// 
+///
 /// `password` - User's matrix password
-/// 
+///
 /// ## Examples
 /// let key = get_matrix_backup_key("matrix.org", "@user:matrix.org", "password123");
-/// 
-pub async fn get_matrix_backup_key(
-    matrix_handle: &str,
-    password: &str,
-) -> Result<String> {
-
+///
+pub async fn get_matrix_backup_key(matrix_handle: &str, password: &str) -> Result<String> {
     // Get user access token
     let user = UserId::try_from(matrix_handle)?;
     println!("{:?}", user);
