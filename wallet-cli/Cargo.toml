@@ -1,0 +1,8 @@
+[package]
+name = "summa-wallet-cli"
+version = "0.1.0"
+edition = "2018"
+
+[dependencies]
+async-std = { version = "1.10.0", features = ["attributes"] }
+wallet = { package = "summa-wallet", path = "../wallet", features = ["std"] }

@@ -1,17 +1,38 @@
-use matrix_sdk::{ruma::UserId, Client, Result, SyncSettings};
-use std::convert::TryFrom;
-use std::collections::HashMap;
+use libwallet::{async_trait, ed25519, CryptoType, Vault};
 
-pub async fn get_user_access_token(email: &str, password: &str) -> Result<String> {
-    let user = UserId::try_from(email)?;
-    let client = Client::new_from_user_id(user.clone()).await?;
+pub use libwallet::{Pair, Wallet};
 
-    // First we need to log in.
-    let res = client.login(user.localpart(), password, None, None).await?;
+/// A `MatrixVault` stores in memory a private key extracted from the
+/// Secure Secret Storage and Sharing system of Matrix that comes in the form of
+/// a JSON object that looks like this:
+/// ```json
+/// {
+///   "encrypted": {
+///     "awesomeKeyId": {
+///       "iv": "supercooliv",
+///       "ciphertext": "secretciphertext",
+///       "mac": "macthingy"
+///     }
+///   }
+/// }
+/// ```
+pub struct MatrixVault([u8; 32]);
 
-    // Syncing is important to synchronize the client state with the server.
-    // This method will never return.
-    client.sync(SyncSettings::default()).await;
-    Ok(res.access_token)
+impl CryptoType for MatrixVault {
+    type Pair = ed25519::Pair;
+}
+
+impl MatrixVault {
+    pub fn new() -> Self {
+        MatrixVault([0; 32])
+    }
+}
+
+#[async_trait(?Send)]
+impl Vault for MatrixVault {
+    async fn unlock(&self, _password: &str) -> libwallet::Result<Self::Pair> {
+        let pair = <Self as CryptoType>::Pair::from_seed(&self.0);
+        Ok(pair)
+    }
 }
 
