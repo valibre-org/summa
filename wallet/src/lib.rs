@@ -35,3 +35,4 @@ impl Vault for MatrixVault {
         Ok(pair)
     }
 }
+
