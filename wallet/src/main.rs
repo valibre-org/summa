@@ -3,6 +3,10 @@ use serde_json::Value;
 use std::collections::HashMap;
 use std::convert::TryFrom;
 
+use std::env;
+
+mod lib;
+
 /// Gets the user's backup key
 ///
 /// ## Arguments
@@ -24,11 +28,16 @@ pub async fn get_matrix_backup_key(matrix_handle: &str, password: &str) -> Resul
         .await?
         .access_token;
 
+        
     println!("Got Access Token: {}", access_token);
+    // client.sync(SyncSettings::default()).await;
+    // let sync_token = client.sync_token().await.unwrap();
+    // println!("sync token: {}", sync_token);
 
     // Build right url for Matrix API request
     let request_url = format!(
         "https://matrix.org/_matrix/client/r0/user/{handle}/account_data/m.megolm_backup.v1",
+        //"https://matrix.virto.community/_matrix/client/r0/user/{handle}/account_data/m.megolm_backup.v1",
         handle = matrix_handle,
     );
 
@@ -50,6 +59,21 @@ pub async fn get_matrix_backup_key(matrix_handle: &str, password: &str) -> Resul
 
 #[tokio::main]
 async fn main() {
-    //let key = get_matrix_backup_key(matrix_handle: &str, password: &str).await;
+    let args: Vec<String> = env::args().collect();
+
+    //let key = get_matrix_backup_key(&args[1], &args[2]).await;
     //println!("Key: {}", key.unwrap());
+
+    let mut matrix_vault = lib::MatrixVault::new() ;
+    matrix_vault.decode_recovery_key(&args[1]);
+
+
+    let key_data = lib::ByteKeyData::new(
+            b"IjM4th3Ia84dAoNH8GcvVQ==",
+            b"mZZQjRWhK6qv1sLnRbEwT8opxf5d+VWbn/Mk835u8kYlpvSZQRXek0PggIg=",
+            b"kqyFK1uzeNWdA1uUju5TLJZaWG4Fhnba04vnZfdcTu8=",
+        );
+    let valid = matrix_vault.validate_key(&key_data);
+
+    println!("Valid key: {}", valid);
 }

@@ -10,6 +10,13 @@ reqwest = { version = "0.11", features = ["json", "blocking"] }
 tokio = { version = "1", features = ["full"] }
 serde = "1.0.130"
 serde_json = "1.0.59"
+bs58 = "0.4.0"
+base64 = "0.13.0"
+aes = "0.7.5"
+ctr = "0.8.0"
+sha2 = "0.10.0"
+hmac = "0.12.0"
+hkdf = "0.12.0"
 
 [features]
 std = [
