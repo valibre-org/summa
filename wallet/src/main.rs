@@ -2,6 +2,7 @@ use matrix_sdk::{ruma::UserId, Client, Result};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::convert::TryFrom;
+use std::convert::TryInto;
 
 use std::env;
 
@@ -67,13 +68,15 @@ async fn main() {
     let mut matrix_vault = lib::MatrixVault::new() ;
     matrix_vault.decode_recovery_key(&args[1]);
 
-
-    let key_data = lib::ByteKeyData::new(
-            b"IjM4th3Ia84dAoNH8GcvVQ==",
-            b"mZZQjRWhK6qv1sLnRbEwT8opxf5d+VWbn/Mk835u8kYlpvSZQRXek0PggIg=",
-            b"kqyFK1uzeNWdA1uUju5TLJZaWG4Fhnba04vnZfdcTu8=",
-        );
+    let iv : &[u8; 24] = args[2].as_bytes().try_into().expect("arg with incorrect lenght");
+    let ciphertext: &[u8; 60] = args[3].as_bytes().try_into().expect("arg with incorrect lenght");
+    let mac : &[u8; 44] = args[4].as_bytes().try_into().expect("arg with incorrect lenght");
+    let key_data = lib::ByteKeyData::new(iv, ciphertext, mac);
+            // b"IOiIR3Q3ENIZ88mHwhnXTg==",
+            // b"b14hUivACrWSUSv+MiU6sDCqG8kBecMVubOb0dh6UL4rMdu7ThYn2Df5nzc=",
+            // b"FMxAv5oAirfaDdJCl+yKOqVS8inskBbJBPRFglBq//o="
+        
     let valid = matrix_vault.validate_key(&key_data);
-
-    println!("Valid key: {}", valid);
+    //println!("Valid key: {}", valid);
 }
+

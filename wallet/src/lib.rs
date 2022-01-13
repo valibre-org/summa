@@ -3,6 +3,7 @@ use matrix_sdk::{ruma::UserId, Client, Result};
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::convert::TryFrom;
+use std::str;
 
 use bs58;
 use aes::Aes256Ctr;
@@ -72,7 +73,7 @@ impl MatrixVault {
         MatrixVault([0; 32])
     }
 
-    // remove password
+    // TODO: remove password
     pub async fn get_backup_key(&self, matrix_handle: &str, password: &str) -> Result<MatrixSecret> {
         let token = self.get_bearer_token(UserId::try_from(matrix_handle)?, password).await?;
         println!("Got Access Token: {}", token);
@@ -122,84 +123,70 @@ impl MatrixVault {
     // Given the recovery key of the user, obtains the valid key and saves it 
     pub fn decode_recovery_key(&mut self, recovery_key: &str) {
 
-        //   don't forget to strip all spaces before base58 decoding!
-        //   final result = base58.decode(recoveryKey.replaceAll(' ', ''));
         let mut key = [0u8; 35];
         let res = bs58::decode(recovery_key.split_whitespace().collect::<String>()).into(&mut key);
-   
-        //   // check the parity byte
-        //   var parity = 0;
-        //   for (final b in result) {
-        //     parity ^= b;
-        //   }
-        //   // as we xor'd ALL the bytes, including the parity byte, the result should be zero!
-        //   if (parity != 0) {
-        //     throw 'Incorrect parity';
-        //   }
 
-        //   // check if we have the correct header prefix
-        //   var OLM_RECOVERY_KEY_PREFIX = [0x8B, 0x01];
-        //   for (var i = 0; i < OLM_RECOVERY_KEY_PREFIX.length; i++) {
-        //     if (result[i] != OLM_RECOVERY_KEY_PREFIX[i]) {
-        //       throw 'Incorrect prefix';
-        //     }
-        //   }
-
-        //   // verify that the length of the key is correct
-        //   var OLM_PRIVATE_KEY_LENGTH = 32; // can also be fetched from olm somehow...
-        //   if (result.length !=
-        //       OLM_RECOVERY_KEY_PREFIX.length + OLM_PRIVATE_KEY_LENGTH + 1) {
-        //     throw 'Incorrect length';
-        //   }
-        //println!("len {}", res.unwrap());
-        if res.unwrap() - 3 == 32 {
-            println!("Correct length");
+        // check the parity byte
+        let mut parity: u8 = 0;
+        for i in key {
+            parity ^= i;
         }
+        if parity != 0 { println!("wrong parity"); }
+
+        // check if we have the correct header prefix
+        // OLM_RECOVERY_KEY_PREFIX = [0x8B, 0x01];
+        let prefix = [0x8B, 0x01];
+        if key[0] != prefix[0] || key[1] != prefix[1] { println!("wrong prefix"); }
+
+        // verify that the length of the key is correct
+        if res.unwrap() - 3 != 32 { println!("wrong length"); }
 
         
-        //   // and finally, strip the prefix and the parity byte to return the raw key
-        //   return Uint8List.fromList(result.sublist(OLM_RECOVERY_KEY_PREFIX.length,
-        //       OLM_RECOVERY_KEY_PREFIX.length + OLM_PRIVATE_KEY_LENGTH));
-        let slice = &key[2 .. key.len() - 1];
-        println!("len: {}", slice.len());
-        let array = <&[u8; 32]>::try_from(slice).unwrap();
-        self.0 = *array;
+        // strip the prefix and the parity byte to return the raw key
+        let slice = &key[2 .. 34];
+        self.0 = *<&[u8; 32]>::try_from(slice).unwrap();
+
     }
 
     // Validate stored key according to data in key_data
     pub fn validate_key(&self, key_data: &ByteKeyData) -> bool {
-
-        //     // ZERO_STR are 32 bytes of zero. We encrypt with our generated key, a blank name and the iv of the event
-        let aes_key = self.get_aes_key();
-        //let key = GenericArray::from_slice(aes_key.finalize().into_bytes());
+        // derive keys
+        //aes key
         let zerosalt: [u8; 32] =  [0; 32];
         let hk = Hkdf::<Sha256>::new(Some(&zerosalt), &self.0);
-        let mut okm = [0u8; 42];
-        hk.expand(b"1", &mut okm);
+        let mut aes_key = [0u8; 32];
+        let icia = hk.expand(b"1", &mut aes_key);
+        if icia.is_err() {println!("error with aes key");}
+        //hmac key
+        let mut hmac_key = [0u8; 32];
+        let byte2: [u8; 1] = [2];
+        let mut info = Vec::with_capacity(33);
+        info.extend_from_slice(&aes_key);
+        info.extend_from_slice(&byte2);
+        let info: &[u8] = &info;
+        let icia = hk.expand(info, &mut hmac_key);
+        if icia.is_err() {
+            println!("error with hmac key");
+        }
+
+        // encrypt ciphertext with aes-key, iv from key_data and name=""
         let nonce = base64::decode(key_data.iv.clone()).unwrap();
         let nonce = GenericArray::from_slice(&nonce);
-        println!("have nonce");
-        
-        //     var encrypted = encryptAes(ZERO_STR, key, '', info['iv']);
-        // create cipher instance
-        //let mut cipher = Aes256Ctr::new(GenericArray::from_slice(&okm), nonce.into());
-        let mut cipher = Aes256Ctr::new(GenericArray::from_slice(&aes_key.finalize().into_bytes()), nonce.into());
-        println!("cipher ");
-        let mut data = key_data.ciphertext;
+        let key = GenericArray::from_slice(&aes_key);
+        let mut cipher = Aes256Ctr::new(key.into(), nonce.into());
+        let mut data = key_data.ciphertext; // to check if the key in self.0 is correct, we need to encrypt a zerosalt and then check the mac
         cipher.apply_keystream(&mut data);
-        //let mut data = std::str::from_utf8(&data);
+        println!("key: {:?}", data);
 
-        //    // calculate the HMAC of the resulting cipher, using the hmacKey
-        let hmac_key = self.get_hmac_key();
-        let mut mac = HmacSha256::new_from_slice(&hmac_key.finalize().into_bytes()).expect("HMAC can take key of any size");
+        // compare mac from encrypt and key_data
+        let mut mac = HmacSha256::new_from_slice(&hmac_key).expect("HMAC can take key of any size");
         mac.update(&data);
-        //mac.verify_slice(key_data.mac.as_bytes()).unwrap();
-        
+
         let result = mac.finalize();
         let mac = result.into_bytes();
         println!("mac encrypted: {:?}", mac);
         println!("mac encoded: {}", base64::encode(mac));
-        
+
 
         //     // stripping all the trailing = of the MACs prior comparing
         //     return info['mac'].replaceAll(RegExp(r'=+$'), '') ==
@@ -208,43 +195,6 @@ impl MatrixVault {
         false
     }
 
-    // replace with hkdf
-    fn get_aes_key(&self) ->  HmacSha256 {
-        let zerosalt: [u8; 32] =  [0; 32];
-        // // hash the key with the zeros as secret
-        let mut prk = HmacSha256::new_from_slice(&zerosalt).expect("HMAC can take key of any size");
-        prk.update(&self.0);
-        // var b = Uint8List(1); // generate one byte
-        // b[0] = 1; // and set it to one
-        let b : [u8; 1] = [1]; 
-        // // use the previously resulted MAC as key, and hash the name, with the one-byte added to the end
-        // // the result is the aes key
-        // final aesKey = Hmac(sha256, prk.bytes).convert(utf8.encode(name) + b);
-        let mut aes_key = HmacSha256::new_from_slice(&prk.finalize().into_bytes()).unwrap();
-        aes_key.update(&b);
-        aes_key
-      
-    }
-
-    fn get_hmac_key(&self) -> HmacSha256 {
-        let zerosalt: [u8; 32] =  [0; 32];
-        // // hash the key with the zeros as secret
-        let mut prk = HmacSha256::new_from_slice(&zerosalt).expect("HMAC can take key of any size");
-        prk.update(&self.0);
-        // b[0] = 2; // set the byte to 2 
-        let b : [u8; 1] = [2];
-        // // use the first computed MAC as a key, this time hashing the aes key plus the name plus the byte two
-        // // the result is the HMAC key
-        // var hmacKey = Hmac(sha256, prk.bytes).convert(aesKey.bytes + utf8.encode(name) + b);
-        let mut hmac_key = HmacSha256::new_from_slice(&prk.finalize().into_bytes()).unwrap();
-        let bytes_to_hash = self.get_aes_key().finalize().into_bytes();
-
-        //hmac_key.update([bytes_to_hash, b].concat());
-        hmac_key.update(&bytes_to_hash);
-        hmac_key
-        // // this just returns the raw, derived aes and HMAC keys in an object
-        // return _DerivedKeys(aesKey: aesKey.bytes, hmacKey: hmacKey.bytes);
-    }
 }
 
 #[async_trait(?Send)]
