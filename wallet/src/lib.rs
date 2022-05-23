@@ -1,3 +1,6 @@
+mod matrixconnector;
+
+
 use libwallet::{async_trait, ed25519, CryptoType, Vault};
 
 pub use libwallet::{Pair, Wallet};
