@@ -3,8 +3,11 @@ use hkdf::Hkdf;
 use hmac::{Hmac, Mac};
 use matrix_sdk::{ruma::UserId, Client, Result};
 use sha2::Sha256;
-use std::{convert::TryFrom, iter::Map, collections::HashMap};
+use std::convert::TryFrom;
 use aes::Aes256Ctr;
+use pbkdf2::pbkdf2;
+//use rand::{distributions::Alphanumeric, thread_rng, Rng};
+use sha2::Sha512;
 
 pub struct MatrixConnector {
     username: String,
@@ -35,23 +38,42 @@ impl MatrixConnector {
 
     //          . guardar secreto, 
     async fn save_secret(&self, secret_name: &str, secret: &MatrixStorageSecret) -> Result<()> {
-        let request_url = format!(
-            "https://matrix.virto.community/_matrix/client/v3/user/@{username}:virto.community/account_data/{secret_name}",
-            username = self.username, secret_name = secret_name,
-        );
+        todo!()
+        // let request_url = format!(
+        //     "https://matrix.virto.community/_matrix/client/v3/user/@{username}:virto.community/account_data/{secret_name}",
+        //     username = self.username, secret_name = secret_name,
+        // );
 
-        let client = reqwest::Client::new();
-        client
-            .put(request_url)
-            //send secret (json)
-            .bearer_auth(self.token.as_ref().unwrap())
-            .send()
-            .await?;
-        Ok(())
+        // let client = reqwest::Client::new();
+        // client
+        //     .put(request_url)
+        //     //send secret (json)
+        //     .bearer_auth(self.token.as_ref().unwrap())
+        //     .send()
+        //     .await?;
+        // Ok(())
+    }
+
+    // TODO rename, this name is confusing
+    pub async fn get_secret_using_keyfile(&self, secret_name: &str, storage_key: &str) -> Result<Vec<u8>> {
+        // decode key
+        let mut decoded_key = MatrixKeyOps::decode_recovery_key(storage_key)?;
+        // validate key (retrieve key_data)
+        let valid = MatrixKeyOps::validate_key(&decoded_key);
+        // get secret 
+        let secret = self.get_secret(secret_name, &mut decoded_key).await?;
+        // decrypt secret?
+        let secret = MatrixKeyOps::decrypt_secret(&secret, &decoded_key)?;
+
+        Ok(secret)
+    }
+
+    pub async fn get_secret_using_passphrase(&self, secret_name: &str, passphrase: &str) -> Result<Vec<u8>> {
+        todo!()
     }
 
     //          . obtener secreto,
-    async fn get_secret(&self, secret_name: &str) -> Result<MatrixStorageSecret> {
+    async fn get_secret(&self, secret_name: &str, storage_key: & mut MatrixStorageKey) -> Result<MatrixStorageSecret> {
         let request_url = format!(
             "https://matrix.virto.community/_matrix/client/v3/user/@{username}:virto.community/account_data/{secret_name}",
             username = self.username, secret_name = secret_name,
@@ -74,7 +96,7 @@ impl MatrixConnector {
 
 
 
-struct MatrixStorageSecret {}
+pub struct MatrixStorageSecret {}
 
 impl MatrixStorageSecret {
     pub fn from_json(json: &str) -> Result<Self> {
@@ -83,13 +105,29 @@ impl MatrixStorageSecret {
 }
 
 
-struct MatrixKeyOps {
-    key: Option<[u8; 32]>,
+struct MatrixKeyOps {}
+
+struct MatrixStorageKey {
+    key: [u8; 32],
     key_data: Option<KeyData>,
 }
 
 impl MatrixKeyOps {
-    fn decode_recovery_key(& mut self,recovery_key: &str) -> Result<Vec<u8>> {
+    fn key_from_passphrase(passphrase: &str, salt: &[u8], iterations: usize, bits: usize) -> Result<Vec<u8>> {
+        todo!()
+    }
+
+    pub fn from_passphrase(passphrase: String, salt: String, rounds: i32) -> Result<Vec<u8>> {
+        let mut key = [0u8; 32];
+        let rounds = rounds as u32;
+
+        pbkdf2::<Hmac<Sha512>>(passphrase.as_bytes(), salt.as_bytes(), rounds, &mut key);
+
+        //self.key = Some(key.clone());
+        Ok(key.to_vec())
+    }
+
+    pub fn decode_recovery_key(recovery_key: &str) -> Result<MatrixStorageKey> {
         // base58 decode
         let mut key = [0u8; 35];
         let decoded_size = bs58::decode(recovery_key.split_whitespace().collect::<String>())
@@ -98,7 +136,9 @@ impl MatrixKeyOps {
         for i in key {
             parity ^= i;
         }
-        if parity != 0 { println!("wrong parity"); }
+        if parity != 0 { 
+            println!("wrong parity"); 
+        }
 
         // check if we have the correct header prefix
         // OLM_RECOVERY_KEY_PREFIX = [0x8B, 0x01];
@@ -110,22 +150,21 @@ impl MatrixKeyOps {
 
         
         // strip the prefix and the parity byte to return the raw key
-        let slice = &key[2 .. 34];
-        self.key = Some(*<&[u8; 32]>::try_from(slice).unwrap());
         let slice = &key[2 .. 34]; 
-        Ok(<[u8; 32]>::try_from(slice).unwrap().to_vec())
+        Ok(MatrixStorageKey{ key: <[u8; 32]>::try_from(slice).unwrap(), key_data: None})
     }
-    fn validate_key(&self) -> bool {
-        let keys = self.derive_keys();
-        let key_data = self.key_data.as_ref().unwrap();
-        let encrypted = self.encrypt_bytes(&[0u8; 32], &keys, &key_data.iv.clone());
+
+    fn validate_key(storage_key: &MatrixStorageKey) -> bool {
+        let keys = Self::derive_keys(storage_key);
+        let key_data = storage_key.key_data.as_ref().unwrap();
+        let encrypted = Self::encrypt_bytes(&[0u8; 32], &keys, &key_data.iv.clone());
         encrypted.mac == key_data.mac
     }
-    fn derive_keys(&self) -> Keys {
+    fn derive_keys(storage_key: &MatrixStorageKey) -> Keys {
          // derive keys
         //aes key
         let zerosalt: [u8; 32] =  [0; 32];
-        let hk = Hkdf::<Sha256>::new(Some(&zerosalt), self.key.unwrap().as_ref());
+        let hk = Hkdf::<Sha256>::new(Some(&zerosalt), storage_key.key.as_ref());
         let mut aes_key = [0u8; 32];
         let icia = hk.expand(b"1", &mut aes_key);
         if icia.is_err() {println!("error with aes key");}
@@ -147,7 +186,7 @@ impl MatrixKeyOps {
         }
     }
     
-    fn encrypt_bytes(&self, bytes: &[u8], keys: &Keys, iv: &str) -> Encrypted {
+    fn encrypt_bytes(bytes: &[u8], keys: &Keys, iv: &str) -> Encrypted {
         // encrypt ciphertext with aes-key, iv from key_data and name=""
         let nonce = base64::decode(iv.clone()).unwrap();
         let nonce = GenericArray::from_slice(&nonce);
@@ -169,6 +208,10 @@ impl MatrixKeyOps {
             ciphertext: base64::encode(data),
             mac: base64::encode(mac),
         }
+    }
+
+    fn decrypt_secret(secret: &MatrixStorageSecret, key: &MatrixStorageKey) -> Result<Vec<u8>> {
+        todo!()
     }
     
 }
