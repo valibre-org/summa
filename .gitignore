@@ -1,1 +1,3 @@
 /target
+.matrix/*
+!.matrix/dendrite.yaml

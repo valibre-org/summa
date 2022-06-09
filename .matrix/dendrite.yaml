@@ -1,0 +1,147 @@
+version: 2
+
+global:
+  server_name: localhost
+  private_key: key.pem
+  well_known_server_name: ""
+
+  trusted_third_party_id_servers:
+    - matrix.org
+    - vector.im
+
+  disable_federation: true
+
+  presence:
+    enable_inbound: false
+    enable_outbound: false
+
+  report_stats:
+    enabled: false
+    endpoint: https://matrix.org/report-usage-stats/push
+
+  server_notices:
+    enabled: false
+    local_part: "_server"
+    display_name: "Server Alerts"
+    avatar_url: ""
+    room_name: "Server Alerts"
+
+  jetstream:
+    addresses:
+    storage_path: ./
+    topic_prefix: Dendrite
+
+  metrics:
+    enabled: false
+    basic_auth:
+      username: metrics
+      password: metrics
+
+  dns_cache:
+    enabled: false
+    cache_size: 256
+    cache_lifetime: "5m" # 5 minutes; https://pkg.go.dev/time@master#ParseDuration
+
+app_service_api:
+  database:
+    connection_string: file:app_service.db
+  disable_tls_validation: true
+  config_files:
+  #  - /path/to/appservice_registration.yaml
+
+client_api:
+  registration_disabled: true
+  guests_disabled: true
+  registration_shared_secret: ""
+
+  enable_registration_captcha: false
+  # Settings for ReCAPTCHA.
+  recaptcha_public_key: ""
+  recaptcha_private_key: ""
+  recaptcha_bypass_secret: ""
+  recaptcha_siteverify_api: ""
+
+  turn:
+    turn_user_lifetime: ""
+    turn_uris:
+    #  - turn:turn.server.org?transport=udp
+    #  - turn:turn.server.org?transport=tcp
+    turn_shared_secret: ""
+    turn_username: ""
+    turn_password: ""
+
+  rate_limiting:
+    enabled: true
+    threshold: 5
+    cooloff_ms: 500
+    exempt_user_ids:
+    #  - "@user:domain.com"
+
+federation_api:
+  database:
+    connection_string: file:federation.db
+
+media_api:
+  database:
+    connection_string: file:media.db
+  base_path: ./media_store
+  max_file_size_bytes: 10485760
+  dynamic_thumbnails: false
+  max_thumbnail_generators: 10
+  thumbnail_sizes:
+    - width: 32
+      height: 32
+      method: crop
+    - width: 96
+      height: 96
+      method: crop
+    - width: 640
+      height: 480
+      method: scale
+
+mscs:
+  database:
+    connection_string: file:mscs.db
+  mscs:
+  #  - msc2836  # (Threading, see https://github.com/matrix-org/matrix-doc/pull/2836)
+  #  - msc2946  # (Spaces Summary, see https://github.com/matrix-org/matrix-doc/pull/2946)
+
+sync_api:
+  database:
+    connection_string: file:sync.db
+  # real_ip_header: X-Real-IP
+
+user_api:
+  account_database:
+    connection_string: file:users.db
+  # The cost when hashing passwords on registration/login. Default: 10. Min: 4, Max: 31
+  bcrypt_cost: 5
+  # The length of time that a token issued for a relying party from
+  # /_matrix/client/r0/user/{userId}/openid/request_token endpoint
+  # is considered to be valid in milliseconds.
+  # openid_token_lifetime_ms: 3600000
+
+key_server:
+  database:
+    connection_string: file:keys.db
+
+room_server:
+  database:
+    connection_string: file:rooms.db
+
+tracing:
+  enabled: false
+  jaeger:
+    serviceName: ""
+    disabled: false
+    rpc_metrics: false
+    tags: []
+    sampler: null
+    reporter: null
+    headers: null
+    baggage_restrictions: null
+    throttler: null
+
+logging:
+  - type: std
+    level: info
