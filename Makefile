@@ -20,6 +20,7 @@ run-matrix: $(DENDRITE_KEYS) .matrix/users.db
 .matrix/users.db:
 	$(DOCKER) run --rm --entrypoint="" -v $(@D):/etc/dendrite $(CONTAINER_IMAGE) \
 		/usr/bin/create-account -username $(DENDRITE_TEST_USER) -password $(DENDRITE_TEST_PASSWORD) > /dev/null 2>/dev/null
+	sqlite3 -csv $@ ".import '|cat -' account_data" < $(@D)/test_account_data.csv
 
 # generate key files required by dendrite to function
 $(DENDRITE_KEYS):
