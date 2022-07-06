@@ -348,7 +348,7 @@ impl MatrixKeyOps {
         
         Ok(data)
     }
-    
+
 }
 
 type HmacSha256 = Hmac<Sha256>;
@@ -419,8 +419,8 @@ pub enum MatrixError {
 mod tests { // for MatrixKeyOps
     use crate::matrixconnector::MatrixKeyOps;
     const KEY: [u8; 32] = [177, 233, 182, 25, 203, 212, 180, 46, 125, 20, 100, 5, 52, 173, 164, 18, 7, 123, 103, 28, 125, 0, 90, 80, 171, 42, 204, 85, 83, 143, 72, 204];
-    const AES_KEY: [u8; 32] = [120, 114, 132, 115, 83, 46, 86, 134, 11, 201, 173, 246, 26, 192, 78, 192, 65, 205, 171, 203, 103, 24, 179, 206, 128, 107, 110, 42, 84, 110, 102, 28];
-    const HMAC_KEY: [u8; 32] = [70, 243, 163, 77, 76, 238, 240, 131, 34, 24, 33, 21, 214, 131, 92, 149, 159, 252, 8, 204, 101, 167, 45, 22, 37, 34, 82, 255, 75, 222, 125, 100];
+    const AES_KEY: [u8; 32] = [36, 210, 94, 26, 31, 61, 150, 36, 254, 74, 165, 26, 71, 248, 25, 61, 13, 192, 116, 71, 100, 63, 154, 14, 3, 194, 206, 233, 65, 179, 74, 234];
+    const HMAC_KEY: [u8; 32] = [28, 174, 46, 179, 162, 17, 56, 238, 27, 97, 154, 77, 83, 112, 165, 18, 171, 178, 95, 179, 201, 1, 140, 151, 113, 136, 115, 154, 12, 217, 86, 122];
     const PASSPHRASE: &str = "akJUeiZ2i4P27Uv";
     const KEYFILE: &str = "EsTu q3iZ vRpP LibY Pq7G NJ2v fQdA eWNf W1ng NRkx NfcF XkLe";
     const SALT: &str = "pHUPIs4yOXLHUadIqDOqO0FYrzNx5CFm";
@@ -450,7 +450,7 @@ mod tests { // for MatrixKeyOps
     fn derive_keys_test() {
         let matrix_key = super::MatrixStorageKey { key: KEY, key_data: None};
         let keys = MatrixKeyOps::derive_keys(&matrix_key).unwrap();
-
+        
         assert_eq!(keys.aes, AES_KEY);
         assert_eq!(keys.hmac, HMAC_KEY);
     }
@@ -460,7 +460,7 @@ mod tests { // for MatrixKeyOps
     fn encrypt_bytes_test() {
         let keys = super::Keys { aes: AES_KEY, hmac: HMAC_KEY };
         let encrypted = MatrixKeyOps::encrypt_bytes(&[0u8; 32], &keys, &IV).expect("Error in test encrypting bytes.");
-        
+
         assert_eq!(encrypted.mac, HMAC);
     }
 
@@ -468,7 +468,7 @@ mod tests { // for MatrixKeyOps
     // decrypt test
     fn decrypt_secret_test() {
         let secret = super::MatrixStorageSecret{ 
-            encrypted: super::Encrypted { iv: IV.to_string(), ciphertext: "\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00".to_string(), mac: "YGNxa56Vy48l1NQjwGKMxpZiy+ExyDgRn8xzqCIzGks=".to_string() }};
+            encrypted: super::Encrypted { iv: IV.to_string(), ciphertext: "+rov/SarxArWx3KB2B1xIe9zOIzrLkEwi6cawkr7CIA=".to_string(), mac: "YGNxa56Vy48l1NQjwGKMxpZiy+ExyDgRn8xzqCIzGks=".to_string() }};
         let matrix_key = super::MatrixStorageKey{key: KEY, key_data: None};
         let decrypted = MatrixKeyOps::decrypt_secret(&secret, &matrix_key).expect("Error decrypting secret test");
 
