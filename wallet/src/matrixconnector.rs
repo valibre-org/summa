@@ -269,25 +269,29 @@ impl MatrixKeyOps {
     }
 
     fn derive_keys(storage_key: &MatrixStorageKey) -> Result<Keys> {
-         // derive keys
+        // derive keys
         //aes key
         let zerosalt: [u8; 32] =  [0; 32];
-        let hk = Hkdf::<Sha256>::new(Some(&zerosalt), storage_key.key.as_ref());
-        let mut aes_key = [0u8; 32];
-        hk.expand(b"1", &mut aes_key).map_err(|_| MatrixError::StorageKeyError)?;
+        let mut prk = HmacSha256::new_from_slice(&zerosalt).unwrap();
+        prk.update(&storage_key.key);
+        let key = prk.finalize().into_bytes();
+        let mut result = HmacSha256::new_from_slice(&key).unwrap();
+        let b: [u8; 1] = [1];
+        result.update(&b);
+        let aes_key = result.finalize().into_bytes();
+        
         
         //hmac key
-        let mut hmac_key = [0u8; 32];
-        let byte2: [u8; 1] = [2];
-        let mut info = Vec::with_capacity(33);
-        info.extend_from_slice(&aes_key);
-        info.extend_from_slice(&byte2);
-        let info: &[u8] = &info;
-        hk.expand(info, &mut hmac_key).map_err(|_| MatrixError::StorageKeyError)?;
+        let b: [u8; 1] = [2];
+        let mut result = HmacSha256::new_from_slice(&key).unwrap();
+        result.update(&aes_key);
+        result.update(&b);
+        let hmac_key = result.finalize().into_bytes();
+
 
         Ok(Keys {
-            hmac: hmac_key.clone(),
-            aes: aes_key.clone(),
+            hmac: hmac_key.into(),
+            aes: aes_key.into(),
         })
     }
     
