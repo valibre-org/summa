@@ -4,9 +4,22 @@ version = "0.1.0"
 edition = "2018"
 
 [dependencies]
-libwallet = { version = "0.1.0", git = "https://github.com/virto-network/libwallet", default-features = false }
+libwallet = { version = "0.1.0", git = "https://github.com/virto-network/libwallet" }
+matrix-sdk = {version ="0.4.1"}
+reqwest = { version = "0.11", features = ["json", "blocking"] }
+serde = "1.0.137"
+bs58 = "0.4.0"
+base64 = "0.13.0"
+aes = "0.7.5"
+ctr = "0.8.0"
+sha2 = "0.10.0"
+hmac = "0.12.0"
+hkdf = "0.12.0"
+pbkdf2 = "0.11.0"
+rand = "0.8.5"
+thiserror = "1.0.31"
 
 [features]
 std = [
-	"libwallet/std"
+#	"libwallet/std"
 ]
